@@ -1,0 +1,67 @@
+---
+
+- hosts: control
+  gather_facts: false
+  vars_files:
+    - vars.yml
+  remote_user: "{{ username }}"
+  become: true
+  tasks:
+    - name: Kubernetes API server
+      ansible.posix.firewalld:
+        port: 6443/tcp
+        permanent: yes
+        state: enabled
+
+    - name: etcd server client API
+      ansible.posix.firewalld:
+        port: 2379-2380/tcp
+        permanent: yes
+        state: enabled
+
+    - name: kubelet API
+      ansible.posix.firewalld:
+        port: 10250/tcp
+        permanent: yes
+        state: enabled
+
+    - name: kube-scheduler
+      ansible.posix.firewalld:
+        port: 10251/tcp
+        permanent: yes
+        state: enabled
+
+    - name: kube-controller-manager
+      ansible.posix.firewalld:
+        port: 10252/tcp
+        permanent: yes
+        state: enabled
+    
+    - name: restart firewalld
+      service:
+        name: firewalld
+        state: restarted
+
+- hosts: workers
+  gather_facts: false
+  vars_files:
+    - vars.yml
+  remote_user: "{{ username }}"
+  become: true
+  tasks:
+    - name: kubelet API
+      ansible.posix.firewalld:
+        port: 10250/tcp
+        permanent: yes
+        state: enabled
+
+    - name: NodePort Services
+      ansible.posix.firewalld:
+        port: 30000-32767/tcp
+        permanent: yes
+        state: enabled
+
+    - name: restart firewalld
+      service:
+        name: firewalld
+        state: restarted

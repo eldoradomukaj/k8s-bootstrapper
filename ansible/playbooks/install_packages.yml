@@ -1,0 +1,73 @@
+---
+- hosts: control, workers
+  gather_facts: false
+  vars_files:
+    - vars.yml
+  remote_user: "{{ username }}"
+  become: true
+  tasks:
+    - name: remove podman and runc if needed
+      yum:
+        name:
+          - podman
+          - runc
+        state: absent
+
+    - name: install dependencies
+      yum:
+        name: yum-utils
+        state: present
+
+    - name: add docker repo
+      command: yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+      args:
+        creates: /etc/yum.repos.d/docker-ce.repo
+    
+    - name: add kube repo
+      copy:
+        src: ./etc/yum.repos.d/kubernetes.repo
+        dest: /etc/yum.repos.d/kubernetes.repo
+        owner: root
+        group: root
+
+    - name: update repo cache
+      dnf:
+        update_cache: yes
+        allowerasing: yes
+        state: latest
+
+    - name: install docker engine
+      yum:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+    
+    - name: install kubeadm kubelet kubectl
+      yum:
+        name:
+          - kubeadm
+          - kubelet
+          - kubectl
+        state: present
+        disable_excludes: kubernetes
+    
+    - name: copy docker file
+      copy: 
+        src: ./etc/docker/daemon.json
+        dest: /etc/docker/
+        owner: root
+        group: root
+      
+    - name: enable docker
+      command: systemctl enable docker
+
+    - name: enable kubelet
+      command: systemctl enable --now kubelet
+
+    - name: reload systemctl daemon
+      command: systemctl daemon-reload
+
+    - name: restart docker
+      command: systemctl restart docker

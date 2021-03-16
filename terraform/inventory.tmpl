@@ -1,0 +1,9 @@
+[control]
+%{ for index, name in ctrl_names ~}
+${name} ansible_host=${ctrl_ips[index]}
+%{ endfor}
+
+[workers]
+%{ for index, name in wrkr_names ~}
+${name} ansible_host=${wrkr_ips[index]}
+%{ endfor }

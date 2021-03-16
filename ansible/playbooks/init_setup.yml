@@ -1,0 +1,98 @@
+---  
+  - hosts: control, workers
+    vars_files:
+      - vars.yml
+    gather_facts: false
+    remote_user: "{{ username }}"
+    become: true
+    tasks:
+      - name: upload ssh public key
+        authorized_key: 
+          user: kubeadmin
+          state: present
+          manage_dir: yes
+          key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
+      
+      - name: Disable root login over SSH
+        lineinfile:
+          path: /etc/ssh/sshd_config
+          regexp: '^PermitRootLogin'
+          line: 'PermitRootLogin no'
+          state: present
+        notify:
+          - restart sshd
+      
+      - name: Disable password login
+        lineinfile:
+          path: /etc/ssh/sshd_config
+          regexp: '^PasswordAuthentication'
+          line: 'PasswordAuthentication no'
+          state: present
+        notify:
+          - restart sshd
+      
+      - name: Enable passwordless sudo
+        lineinfile:
+          path: /etc/sudoers
+          regexp: '^%wheel'
+          line: '%wheel ALL=(ALL) NOPASSWD: ALL'
+          validate: 'visudo -cf %s'
+          state: present
+
+      - name: move k8s.conf to modules-loads.d
+        copy:
+          src: ./etc/modules-load.d/k8s.conf
+          dest: /etc/modules-load.d/k8s.conf
+          owner: root
+          group: root
+        state: present
+
+      - name: move k8s.conf to sysctl.d
+        copy:
+          src: ./etc/sysctl.d/k8s.conf
+          dest: /etc/sysctl.d/k8s.conf
+          owner: root
+          group: root
+        state: present
+
+      - name: apply sysctl conf files
+        command: sysctl --system
+
+      - name: Update yum cache
+        yum:
+          update_cache: yes
+
+      - name: update packages
+        yum:
+          name: '*'
+          state: latest
+
+      - name: disable swap
+        command: swapoff -a
+      - name: disable swap permenantly
+        replace:
+          path: /etc/fstab
+          regexp: '^(\s*)([^#\n]+\s+)(\w+\s+)swap(\s+.*)$'
+          replace: '#\1\2\3swap\4'
+
+      - name: disable SELinux
+        ansible.posix.selinux:
+          state: disabled
+        notify:
+          - restart nodes
+
+    handlers:
+      - name: restart sshd
+        service:
+          name: sshd
+          state: restarted
+
+      - name: restart nodes
+        reboot:
+          connect_timeout: 5
+          reboot_timeout: 120
+          pre_reboot_delay: 0
+          post_reboot_delay: 10
+          test_command: whoami
+
+      
